@@ -2,8 +2,11 @@
 import html
 import json
 import re
+import time
 import urllib.parse
 import urllib.request
+import uuid
+from datetime import datetime, timedelta, timezone
 
 VENUE_URL = "https://biletinial.com/tr-tr/mekan/istanbul-bb-sehir-tiyatrolari"
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -14,6 +17,39 @@ def fetch(url, timeout=30):
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "tr-TR,tr;q=0.9"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode("utf-8", errors="replace")
+
+
+TR = timezone(timedelta(hours=3))
+
+
+def page_age(page):
+    """Sayfadaki cachedDate'e göre sayfanın yaşı (sn). Bulunamazsa None."""
+    m = re.search(r"cachedDate = '(\d+)\.(\d+)\.(\d+) (\d+):(\d+):(\d+)'", page)
+    if not m:
+        return None
+    d, mo, y, h, mi, s = map(int, m.groups())
+    return (datetime.now(TR) - datetime(y, mo, d, h, mi, s, tzinfo=TR)).total_seconds()
+
+
+def fetch_fresh(url, max_age=90, attempts=6):
+    """Site sayfaları önbelleğe alıyor (bazen 40+ dk eski). Her denemede rastgele çerezle farklı
+    bir önbellek kopyası isteyip en tazesini döner."""
+    best, best_age = None, None
+    for _ in range(attempts):
+        req = urllib.request.Request(url, headers={
+            "User-Agent": UA, "Accept-Language": "tr-TR,tr;q=0.9", "Cookie": "cb=" + uuid.uuid4().hex})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            page = r.read().decode("utf-8", errors="replace")
+        age = page_age(page)
+        if age is None:
+            return page
+        if best is None or age < best_age:
+            best, best_age = page, age
+        if age <= max_age:
+            break
+        time.sleep(0.5)
+    return best
+
 
 
 def list_plays():
@@ -41,7 +77,7 @@ def search_plays(term):
 
 def list_sessions(play_url):
     """Bir oyunun seanslarını döner: [{id, date, time, venue, available, button}]."""
-    page = fetch(play_url)
+    page = fetch_fresh(play_url)
     title = re.search(r'<h1 class="hero-v3__title">(.*?)</h1>', page, re.S)
     title = html.unescape(title.group(1)).strip() if title else ""
     poster = re.search(r'<meta property="og:image" content="([^"]+)"', page)
