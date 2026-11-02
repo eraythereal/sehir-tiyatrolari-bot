@@ -32,23 +32,24 @@ def load_json(path, default):
     return default
 
 
-def telegram(text):
+def telegram(text, photo=None):
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chats = os.environ.get("TELEGRAM_CHAT_ID", "")
     if not token or not chats:
         print("[TELEGRAM YOK] " + text)
         return
     for chat in [c.strip() for c in chats.split(",") if c.strip()]:
-        data = urllib.parse.urlencode({
-            "chat_id": chat, "text": text, "parse_mode": "HTML",
-            "disable_web_page_preview": "true",
-        }).encode()
-        try:
-            urllib.request.urlopen(
-                urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data),
-                timeout=20).read()
-        except Exception as e:  # noqa
-            print("Telegram hatası:", e)
+        attempts = [("sendPhoto", {"chat_id": chat, "photo": photo, "caption": text, "parse_mode": "HTML"})] if photo else []
+        attempts.append(("sendMessage", {"chat_id": chat, "text": text, "parse_mode": "HTML",
+                                         "disable_web_page_preview": "true"}))
+        for method, fields in attempts:
+            try:
+                urllib.request.urlopen(
+                    urllib.request.Request(f"https://api.telegram.org/bot{token}/{method}",
+                                           data=urllib.parse.urlencode(fields).encode()), timeout=20).read()
+                break
+            except Exception as e:  # noqa
+                print("Telegram hatası:", method, e)
 
 
 def watched(name, patterns):
@@ -86,9 +87,13 @@ def check_once(cfg, state):
                 if prev is None and not cfg.get("notify_new_sessions", True):
                     continue
                 telegram(
-                    f"🎭 <b>{kind}!</b>\n<b>{name}</b>\n"
-                    f"📅 {s['date']} {s['time']}\n📍 {s['venue']}\n"
-                    f"👉 <a href=\"{s['url']}\">Bilet al</a>")
+                    f"🎭 <b>{kind}!</b>\n"
+                    f"🎭 <b>Oyun:</b> {name}\n"
+                    f"👥 <b>Ekip:</b> {s['org']}\n"
+                    f"📍 <b>Sahne:</b> {s['venue']}\n"
+                    f"📅 <b>Tarih:</b> {s['date']}, {s['time']}\n"
+                    f"🔗 <a href=\"{s['url']}\">Koltuk Seçimi İçin Tıkla</a>",
+                    photo=s["poster"] or None)
     if baseline:
         state["_init"] = True
         changed = True

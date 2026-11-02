@@ -32,6 +32,8 @@ def list_plays():
 def list_sessions(play_url):
     """Bir oyunun seanslarını döner: [{id, date, time, venue, available, button}]."""
     page = fetch(play_url)
+    poster = re.search(r'<meta property="og:image" content="([^"]+)"', page)
+    poster = html.unescape(poster.group(1)) if poster else ""
     sessions = []
     rows = re.finditer(
         r'<div class="row" id="seans-(\d+)">(.*?)(?=<div class="row" id="seans-|</section>)', page, re.S)
@@ -44,8 +46,11 @@ def list_sessions(play_url):
         btn_tag = re.search(r'<button[^>]*class="[^"]*\bcta\b[^"]*"[^>]*>', body, re.S)
         tag = btn_tag.group(0) if btn_tag else ""
         label = html.unescape(re.sub(r"\s+", " ", btn.group(1))).strip() if btn else ""
+        org = re.search(r'class="td">Organizasyon:\s*(.*?)<', body)
         sold_out = "sold-out" in tag or "disabled" in tag
         sessions.append({
+            "poster": poster,
+            "org": html.unescape(org.group(1)).strip() if org else "",
             "id": m.group(1),
             "date": html.unescape(d.group(1)) if d else "",
             "time": tm.group(1) if tm else "",
