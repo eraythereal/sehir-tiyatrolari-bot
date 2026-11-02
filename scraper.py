@@ -2,6 +2,7 @@
 import html
 import json
 import re
+import urllib.parse
 import urllib.request
 
 VENUE_URL = "https://biletinial.com/tr-tr/mekan/istanbul-bb-sehir-tiyatrolari"
@@ -29,9 +30,20 @@ def list_plays():
     return plays
 
 
+def search_plays(term):
+    """biletinial aramasından oyun adresleri döner: {url: slug-adı}. Mekan sayfası yalnızca 20 oyun gösterdiği için gerekli."""
+    page = fetch("https://biletinial.com/tr-tr/search?q=" + urllib.parse.quote(term))
+    out = {}
+    for slug in re.findall(r'/tr-tr/tiyatro/([a-z0-9-]+)', page):
+        out[f"https://biletinial.com/tr-tr/tiyatro/{slug}"] = slug.replace("-", " ")
+    return out
+
+
 def list_sessions(play_url):
     """Bir oyunun seanslarını döner: [{id, date, time, venue, available, button}]."""
     page = fetch(play_url)
+    title = re.search(r'<h1 class="hero-v3__title">(.*?)</h1>', page, re.S)
+    title = html.unescape(title.group(1)).strip() if title else ""
     poster = re.search(r'<meta property="og:image" content="([^"]+)"', page)
     poster = html.unescape(poster.group(1)) if poster else ""
     sessions = []
@@ -50,6 +62,7 @@ def list_sessions(play_url):
         sold_out = "sold-out" in tag or "disabled" in tag
         sessions.append({
             "poster": poster,
+            "name": title,
             "org": html.unescape(org.group(1)).strip() if org else "",
             "id": m.group(1),
             "date": html.unescape(d.group(1)) if d else "",

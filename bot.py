@@ -59,25 +59,42 @@ def watched(name, patterns):
     return any(norm(p) in n for p in patterns)
 
 
+def discover_plays(cfg):
+    """Takip edilecek oyun adreslerini bulur: mekan sayfası + her takip terimi için arama."""
+    plays = {}
+    try:
+        plays.update(scraper.list_plays())
+    except Exception as e:  # noqa
+        print("Mekan sayfası alınamadı:", e)
+    patterns = cfg.get("watch", [])
+    for term in patterns:
+        try:
+            for url, slug_name in scraper.search_plays(term).items():
+                plays.setdefault(url, slug_name)
+        except Exception as e:  # noqa
+            print("Arama başarısız:", term, e)
+    return {u: n for u, n in plays.items() if watched(n, patterns)}
+
+
 def check_once(cfg, state):
     """Bir tur kontrol. state: {session_id: bool(available)}. Döner: değişti mi."""
     changed = False
     baseline = not state.get("_init")
     seen = state.setdefault("sessions", {})
-    try:
-        plays = scraper.list_plays()
-    except Exception as e:  # noqa
-        print("Mekan sayfası alınamadı:", e)
+    plays = discover_plays(cfg)
+    if not plays:
         return False
+    org_filter = norm(cfg.get("organizer_contains", ""))
     for url, name in plays.items():
-        if not watched(name, cfg.get("watch", [])):
-            continue
         try:
             sessions = scraper.list_sessions(url)
         except Exception as e:  # noqa
             print("Oyun sayfası alınamadı:", name, e)
             continue
         for s in sessions:
+            if org_filter and org_filter not in norm(s["org"]):
+                continue
+            name = s.get("name") or name
             prev = seen.get(s["id"])
             if prev != s["available"]:
                 seen[s["id"]] = s["available"]

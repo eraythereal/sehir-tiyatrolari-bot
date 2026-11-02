@@ -1,6 +1,6 @@
 {
   "watch": ["Tartuffe", "Fosforlu Cevriye", "Gözlerimi Kaparım Vazifemi Yaparım"],
+  "organizer_contains": "ibb",
   "notify_new_sessions": true,
-  "interval_seconds": 30,
-  "run_minutes": 9
+  "interval_seconds": 30
 }
