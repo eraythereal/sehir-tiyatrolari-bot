@@ -1,0 +1,6 @@
+{
+  "watch": ["Tartuffe", "Fosforlu Cevriye", "Gözlerimi Kaparım Vazifemi Yaparım"],
+  "notify_new_sessions": true,
+  "interval_seconds": 30,
+  "run_minutes": 9
+}
